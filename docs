@@ -1,0 +1,49 @@
+*~!-/
+Project Name: 	Ritz
+Author: 	Justin Hellsten
+Date:           August 2, 2013
+Last Modified:  August 2, 2013
+/-!~*
+
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+
+						R I T Z
+
+*~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+
+Overview:
+
+   Ritz is a 2D side scroller where the hero (Ritz) must fight all his enemies and 
+reach the exit. He is inside a facility which he must escape from but there will be
+challenges along the way. 
+
+Game Description:
+
+*World* - Inside a facility and platforms are tiled based. The background is a tiled pattern.
+*Ritz* - Our avatar/hero. He is a blue ball with two eyes.
+*Tiles* - Each tile is 50 by 50 px. Tiles are used as platformers and may or may not have special
+          properties to them.
+*Enemies* - Enemies can be similiar in design as Bouncer but 
+
+Main Objectives:
+
+->World Map Object
+->Ritz Object
+->Tile Sprites
+->Enemy Sprites (can be similiar to Ritz in design)
+->Score system based on collecting and killing enemies.
+->Sound Effects and Music Track per level
+->Health Counter
+->Player is controled using the keyboard and mouse. Mouse to use devices and
+  keyboard to move the player.
+->Three levels
+
+Secondary Objectives:
+
+->Multiple faces when hit or angry
+->More Levels
+->Game Editor
+->Differnt look enemies
+->Boss Battle
+
+
