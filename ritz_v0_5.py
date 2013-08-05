@@ -530,7 +530,7 @@ class StartScene(gameEngine.Scene):
         self.instructionSprite3 = gameEngine.MyFontSprite("You have three lives and you die really easily. Good luck! Have fun!", 20, 
                                                          (screenWidth / 2 - 20, 280), (255,255,255))  
         
-        self.continueSprite = gameEngine.MyFontSprite("Press any key to continue", 32,
+        self.continueSprite = gameEngine.MyFontSprite("Press any key to play again", 32,
                                                     (screenWidth / 2, screenHeight - 100), (255,255,255))
         
         self.backgroundSprite = gameEngine.MySprite(self, "background.png")
