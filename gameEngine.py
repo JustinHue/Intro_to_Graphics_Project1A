@@ -49,13 +49,20 @@ class TileMap(pygame.sprite.Sprite):
         self.scrollx = 0
         self.scrolly = 0
         
+        self.startx = self.starty = 0
         self.boundary = Boundary(False, False, False, False)
         
         self.__loadFile()
         self.__loadImages()
         self.__setSize()
+        self.__setStartPosition()
         self.__loadTiles()
         self.__renderMap()
+        self.__loadEntities()
+        self.init() 
+        
+    def __loadEntities(self):
+        self.entityData = self.data[gameEngineUtil.MAP_ENTITIES]
         
     def __loadFile(self):
         self.data = gameEngineUtil.load_tileMap(self.mapfile)
@@ -80,6 +87,10 @@ class TileMap(pygame.sprite.Sprite):
         # Sets the size based on the level data file specifications, [size] section.
         self.size = self.data[gameEngineUtil.MAP_SIZE]
     
+    def __setStartPosition(self):
+        # Sets the start position coordinate for the player
+        self.startx, self.starty = self.data[gameEngineUtil.MAP_STARTLOCATION]
+        
     def __loadImages(self):
         # Load tile images into memory. All tiles refer to these tile images.
         # Tile images are specified in the level data file, [imgs] section.
@@ -131,7 +142,6 @@ class TileMap(pygame.sprite.Sprite):
         # in virtual space but are rendered correctly to the screen here.
         screenWidth = self.screen.get_width()
         screenHeight = self.screen.get_height()
-        
         for group in self.groups:
             for sprite in group.sprites():
                 # if the entitity is visible on the screen, draw it
@@ -141,7 +151,8 @@ class TileMap(pygame.sprite.Sprite):
                     sprite.rect.top < self.scrolly + screenHeight:
                     self.image.blit(sprite.image, (sprite.rect.left - self.scrollx, 
                                                    sprite.rect.top - self.scrolly))
-
+                    
+                    
     def __checkGroupBounds(self):
         # Checks the boundary/tile collisions of all groups.
         # Boundary collisions are left, top, right bottom walls of the map.
@@ -158,15 +169,19 @@ class TileMap(pygame.sprite.Sprite):
                 if sprite.rect.left < 0 and self.boundary.leftBound:
                     sprite.rect.left = 0
                     sprite.dx = 0
+                    sprite.wallCollision = sprite.COLLIDE_LEFT
                 if sprite.rect.right > mapWidth and self.boundary.rightBound:
                     sprite.rect.right = mapWidth
                     sprite.dx = 0
+                    sprite.wallCollision = sprite.COLLIDE_RIGHT
                 if sprite.rect.top < 0 and self.boundary.topBound:
                     sprite.rect.top = 0
                     sprite.dy = 0
+                    sprite.wallCollision = sprite.COLLIDE_TOP
                 if sprite.rect.bottom > mapHeight and self.boundary.bottomBound:
                     sprite.rect.bottom = mapHeight
                     sprite.dy = 0
+                    sprite.wallCollision = sprite.COLLIDE_BOTTOM
                     
                 #Check boundary of doom
                 if sprite.rect.left < -self.DOOM_BOUNDARY_LIMIT or \
@@ -182,6 +197,7 @@ class TileMap(pygame.sprite.Sprite):
                 rightIndex = int(sprite.rect.right) / self.size + 1
 
                 allTransparent = True
+                sprite.collisionDirs = []
                 
                 for iy in range(topIndex , bottomIndex):
                     for ix in range(leftIndex, rightIndex):
@@ -197,12 +213,15 @@ class TileMap(pygame.sprite.Sprite):
                             allTransparent = False
                             tilePosition = (ix * self.size, iy * self.size)
                             # Get last location
-                            sprite.collisionDirs = sprite.collisionDirection((tilePosition[0], tilePosition[1], 
-                                                                              self.size, self.size))
-                                
-                            for direction in sprite.collisionDirs:
+                            
+                            collisionDirs = sprite.collisionDirection((tilePosition[0], tilePosition[1], 
+                                                                                   self.size, self.size))
+                            sprite.collisionDirs.extend(collisionDirs)
+                            sprite.collisionDirs = list(set(sprite.collisionDirs))
+                            
+                            for direction in collisionDirs:
                                 if direction == sprite.COLLIDE_TOP:
-                                    sprite.rect.bottom = tilePosition[1]
+                                    sprite.rect.bottom = tilePosition[1] 
                                     sprite.setDY(0)
                                     sprite.falling = False
                                 elif direction == sprite.COLLIDE_BOTTOM:
@@ -214,7 +233,7 @@ class TileMap(pygame.sprite.Sprite):
                                 elif direction == sprite.COLLIDE_RIGHT:
                                     sprite.rect.left = tilePosition[0] + self.size
                                     sprite.setDX(0)
-              
+
                 if allTransparent:
                     sprite.falling = True
 
@@ -237,6 +256,10 @@ class TileMap(pygame.sprite.Sprite):
             self.scrolly = mapHeight - screenHeight
             
             
+    def reset(self):
+        self.groups = []
+        self.init()
+        
     def addGroup(self, group):
         # Add group to groups
         self.groups.append(group)
@@ -257,7 +280,7 @@ class TileMap(pygame.sprite.Sprite):
         self.scrollx = xAmt
         self.scrolly = yAmt
         self.__checkBounds()
-        self.__renderMap()
+        
                 
     def setBoundary(self, leftBound, topBound, rightBound, bottomBound):
         self.boundary.leftBound = leftBound
@@ -275,10 +298,33 @@ class TileMap(pygame.sprite.Sprite):
         # The index values of the map are returned.
         return (self.row -1, self.column - 1)
         
+    def getTileAt(self, ix, iy):
+        return self.tiles[iy][ix]
+    
+    def isTileCollidable(self, tile):
+        if tile == self.TRANPARENT_TILE:
+            return False
+        else:
+            return True
+        
+    def getIndexAt(self, x, y):
+        return (int(x / self.size), int(y / self.size))
+    
+    def init(self):
+        #Used to initialize map. Feel free to override and 
+        #customize your map intialization using this method
+        pass
+                    
     def update(self):
+        #Updates the following: events, group collision detection,
+        #and render adjustment based on group. When overriden
+        #the base class update method must be called.
+
         for group in self.groups:
-            group.update()        
+            group.update()     
+
         self.__checkGroupBounds()
+        self.__renderMap()
         self.__renderGroups()
 
 
@@ -301,31 +347,39 @@ class MySprite(pygame.sprite.Sprite):
     FACE_DOWN = 2
     FACE_LEFT = 3
     
-    def __init__(self, scene, imageName):
+    def __init__(self, scene, center, imageName = ""):
         pygame.sprite.Sprite.__init__(self)
-        self.masterImage = pygame.image.load(gameEngineUtil.DIR_GFX + imageName)
+        if imageName == "":
+            self.masterImage = pygame.surface.Surface((0, 0), pygame.SRCALPHA)
+        else:
+            self.masterImage = pygame.image.load(gameEngineUtil.DIR_GFX + imageName)
         self.scene = scene
         self.image = self.masterImage
         self.rect = self.image.get_rect()
+        self.rect.center = center
+        self.orginalCenter = center
         
         self.dx = 0
         self.dy = 0
         self.dir = 0
         self.speed = 0
         self.collisionDirs = []
+        self.wallCollision = self.COLLIDE_NONE
+        self.touchingWall = False
+        self.applyPhysics = True
         
         self.falling = False
         self.jumping = False
         self.idle = False
         self.walking = False
         self.horizontalFacing = self.FACE_RIGHT
-
+        
     def __applyFlags(self):
         physics = self.scene.physics
         
         # If the sprite is falling, apply gravity and set 
         # walking, idle flags to false
-        if self.falling:
+        if self.falling and self.applyPhysics:
             self.addDY(physics.GRAVITY)
             self.walking = False
             self.idle = False
@@ -363,11 +417,12 @@ class MySprite(pygame.sprite.Sprite):
             self.horizontalFacing = self.FACE_LEFT
         elif dxSign > 0:
             self.horizontalFacing = self.FACE_RIGHT
+
         if dySign < 0:
             self.jumping = True
         elif dySign > 0:
             self.jumping = False
-            
+        
     def hflip(self):
         # Flips the image of the sprite horizontally
         self.image = pygame.transform.flip(self.masterImage, True, False)
@@ -445,8 +500,20 @@ class MySprite(pygame.sprite.Sprite):
             signDY = cmp(int(self.dy), 0) * -1
             signDX = cmp(int(self.dx), 0) * -1
 
+            # Check left right collision
+            if signDX != 0:
+                        
+                for leftPosition in range(tempPosition[0], lastPosition[0] + 1, signDX):
+                    if leftPosition == targetRect.right:
+                        collisionList.append(self.COLLIDE_RIGHT)
+                        
+                for rightPosition in range(tempPosition[2], lastPosition[2] - 1, signDX):
+                    if rightPosition == targetRect.left:
+                        collisionList.append(self.COLLIDE_LEFT)
+                        
             # Check top bottom collision
-            if signDY != 0:                      
+            if signDY != 0:               
+                        
                 for topPosition in range(tempPosition[1], lastPosition[1] + 1, signDY):
                     if topPosition == targetRect.bottom:
                         collisionList.append(self.COLLIDE_BOTTOM)
@@ -455,36 +522,50 @@ class MySprite(pygame.sprite.Sprite):
                     if bottomPosition == targetRect.top:
                         collisionList.append(self.COLLIDE_TOP)
 
-            # Check left right collision
-            if signDX != 0:
-                for leftPosition in range(tempPosition[0], lastPosition[0] + 1, signDX):
-                    if leftPosition == targetRect.right:
-                        collisionList.append(self.COLLIDE_RIGHT)
-                        
-                for rightPosition in range(tempPosition[2], lastPosition[2] - 1, signDX):
-                    if rightPosition == targetRect.left:
-                        collisionList.append(self.COLLIDE_LEFT)
 
-        if collisionList == []:
-            collisionList.append(self.COLLIDE_NONE)
+
         return collisionList
     
     def update(self):
         self.__applyFlags()
         self.__calcPosition()
 
+""" MyFontSprite """
+#A font sprite used for quick text.
+#Pass in the text, size, and center.
+#Can change most of the attributes using
+#mutator methods. Image changes accordingly.
+class MyFontSprite(pygame.sprite.Sprite):
+    def __init__(self, text, size, center, color):
+        pygame.sprite.Sprite.__init__(self)
+        self.text = text
+        self.size = size
+        self.center = center
+        self.color = color
+        
+        self.__renderImage()
+        
+    def __renderImage(self):
+        self.font = pygame.font.SysFont("None", self.size)
+        self.image = self.font.render(self.text, 1, self.color)
+        self.rect = self.image.get_rect()
+        self.rect.center = self.center
+        
+    def changeText(self, text):
+        self.text = text
+        self.__renderImage()
 
+    def changeColor(self, color):
+        self.color = color
+        self.__renderImage()
+        
+    def changeSize(self, size):
+        self.size = size
+        self.__renderImage()
 
-
-
-
-
-
-
-
-
-
-
+    def changePosition(self, center):
+        self.center = self.center
+        self.__renderImage()
 
 
 
@@ -942,56 +1023,87 @@ class SuperSprite(pygame.sprite.Sprite):
     
 """ ------------------------------------------------------------------------------------------------------------------------ """
 
-class Scene(object):    
+""" Scene 
+    
+    Use this object creates a new python window in full screen mode and
+    is used as a place to add group and sprites objects. Each scene
+    has a physics engine which drives all group and sprite objects in their
+    update functions.
+    """
+class Scene(object):  
+    #Constructor for our scene object. Takes in width and height parameters which is
+    #used for our display screen.  
     def __init__(self, (width, height)):
+        #Initialize pygame and the screen in full screen mode with an black background.
         pygame.init()
+        self.width = width
+        self.height = height
         self.screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
-        self.background = pygame.Surface(self.screen.get_size())
+        self.background = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        self.screen.blit(self.background, (0, 0))
+        
+        #Create our physics engine
         self.physics = Physics()
         
+        #Create our sprites and group lists.
+        #Also initialize any other variables.
         self.sprites = []
         self.groups = []
-    
-    def start(self):
-        pygame.mouse.set_visible(False)
-        self.screen.blit(self.background, (0, 0))
-        self.clock = pygame.time.Clock()
+        self.exit = False
         self.keepGoing = True
+        
+        self.clock = pygame.time.Clock()
+        pygame.mouse.set_visible(False)
+        
+    #Start the scene.
+    def start(self):
         self.__mainLoop()
 
+    #Stop our scene by getting out of the main loop.
     def stop(self):
         self.keepGoing = False
-    
+        
+    #Terminate our window complete by setting the exit flag to true.
+    #The exit flag by self does nothing but outside callers can use
+    #this flag to indicate when to terminate the whole program.
+    def terminate(self):
+        self.exit = True
+        self.stop()
+        
+    #The main loop which executes the scene. The loop updates and renders the game and
+    #calls doEvents automatically.
     def __mainLoop(self):
         while self.keepGoing:
+            keys = pygame.key.get_pressed()
             self.clock.tick(30)
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.keepGoing = False
+                if event.type == pygame.QUIT or keys[pygame.K_ESCAPE]:
+                    self.terminate()
                 self.doEvents(event)
         
             self.update()
             for group in self.groups:
                 group.update()
+                group.clear(self.screen, self.background)
                 group.draw(self.screen)
-        
+                
             pygame.display.flip()
 
-    def makeSpriteGroup(self, sprites):
-        """ is there a reason for this method? I
-            might remove it later """
-        tempGroup = pygame.sprite.OrderedUpdates(sprites)
-        return tempGroup
-    
+    #Adds group to the scene. All groups will be updated and drawn in the main loop.
     def addGroup(self, group):
         self.groups.append(group)
 
+    #Processes any events issued and detected. It is automatically called in
+    #the main loop.
     def doEvents(self, event):
         pass
         
+    #Updates the scene. Is called automatically in the main loop.
     def update(self):
         pass
     
+    #Changes the caption of the scene window. Must be used before the start()
+    #method otherwise it will not be taken into effect.
     def setCaption(self, title):
         pygame.display.set_caption(title)
 

@@ -1,16 +1,18 @@
 """
-    Author: Justin Hellsten
-    Date: August 3rd
-    Last Modified By: Justin Hellsten
-    Description: Tile based side scroller where the player controlls
-                 a character called Ritz.
+    Author's name: Justin Hellsten
+    Last Modified by: Justin Hellsten
+    Date last Modified: Mon, August 5
+    Program description:
+                 Tile based side scroller where the player controlls a character called Ritz.
+                 Collect coins and shoot various enemies in a platform tile side scroller.
                  
-    Version: 0.7.0
+    Revision History: 0.7.0
         -> Added new enemy (Shy guy, can jump)
         -> Added shy guy enemies to the platform above in level one
         -> Reduced health of goomba and shy guy
         -> Increase delay idle of shy guy
         -> Shyguy now jumps when close to a tile barrier
+        
         
 """
 import pygame, gameEngine, random
@@ -479,6 +481,9 @@ class RitzBullet(gameEngine.MySprite):
                 self.sndCollision.play()
                 self.scoreBoard.addScore(10)
                 self.kill()
+            
+
+
             
     def update(self):
         gameEngine.MySprite.update(self)

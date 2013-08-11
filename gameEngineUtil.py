@@ -10,7 +10,8 @@ MAP_SIZE = '[size]'
 MAP_IMG = '[imgs]'
 MAP_IMGDIR = '[imgdir]'
 MAP_STARTLOCATION = '[startlocation]'
-MAP_SECTIONS = [MAP_TOKENS, MAP_SIZE, MAP_IMG, MAP_IMGDIR, MAP_STARTLOCATION]
+MAP_ENTITIES = '[entities]'
+MAP_SECTIONS = [MAP_TOKENS, MAP_SIZE, MAP_IMG, MAP_IMGDIR, MAP_STARTLOCATION, MAP_ENTITIES]
 
 # Default directories
 DIR_DATA = 'data/'
@@ -36,7 +37,7 @@ def load_tileMap(mapfile):
         return None
 
 
-    data = {'[tokens]':[], '[size]':0, '[imgs]':[], '[imgdir]':'', '[startlocation]':(0,0)} 
+    data = {'[tokens]':[], '[size]':0, '[imgs]':[], '[imgdir]':'', '[startlocation]':(0,0), '[entities]':[(0,0,0)]} 
     column = row = 0
     reading = ''
     
@@ -65,8 +66,13 @@ def load_tileMap(mapfile):
             data[MAP_IMG].append(line)
         elif reading == MAP_IMGDIR:
             data[MAP_IMGDIR] = line
-                    
-
+        elif reading == MAP_STARTLOCATION:
+            tokens = line.split(',')
+            data[MAP_STARTLOCATION] = (int(tokens[0]), int(tokens[1]))
+        elif reading == MAP_ENTITIES:
+            tokens = line.split(',')
+            data[MAP_ENTITIES].append((tokens[0], int(tokens[1]), int(tokens[2])))
+                                 
     return data
 
 
