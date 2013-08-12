@@ -1,23 +1,13 @@
 """
     Author's name: Justin Hellsten
     Last Modified by: Justin Hellsten
-    Date last Modified: Mon, August 5
+    Date last Modified: Sun, August 11
     Program description:
                  Tile based side scroller where the player controlls a character called Ritz.
                  Collect coins and shoot various enemies in a platform tile side scroller.
                  
-    Revision History: 0.8.0
-        -> Change captions of windows to propery name (Ritz)
-        -> Added level2 and level3 data files
-        -> Added door sprite to get to next level
-        -> Added constants for sounds and graphics. (resources.py)
-        -> Added splash screen scene
-        -> Added center parameter for my sprite
-        -> Added sound for splash scene
-        -> Fixed up scene object and now uses group clear method.
-        -> Moved playing music to resources module
-        -> Added more tiles to tileset. 
-        -> Began working on level maker.
+    Revision History: 0.9.0
+
             
 """
 import pygame, gameEngine, random
@@ -902,7 +892,7 @@ class GamePlayScene(gameEngine.Scene):
         self.physics = gameEngine.Physics()
                 
         #Load level one
-        self.levelOne = LevelOne(self, "level1.dat")
+        self.levelOne = LevelOne(self, "level.dat")
         self.levelTwo = LevelTwo(self, "level2.dat")
         self.levelThree = LevelThree(self, "level3.dat")
         
