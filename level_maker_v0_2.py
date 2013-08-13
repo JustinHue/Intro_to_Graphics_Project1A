@@ -15,7 +15,7 @@
         -> Added [imgs] attribute to file
         -> Added [imgdir] attribute to file
         -> Added functionality to place ritz location on the tile map (ctrl + r)
-        -> Saving file message is now displayed when saving. It will disappear when user lets go of 
+        -> Saving file message is now displayed when saving. It will disappear when user lets go of
            ctrl + s
         -> Added functionality to clear tile map with (ctrl + alt + c)
         -> Added clear, add delete flags in tile map.
