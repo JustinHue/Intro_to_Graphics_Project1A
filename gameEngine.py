@@ -27,97 +27,51 @@ class Boundary():
     
     
 class TileMap(pygame.sprite.Sprite):
-    # Use this to describe maps based on tile (array) configuration.
-    # Normal pygame sprite set up applies to TileMap. Inner sprites
-    # do not, however. Each sprite is rendered based on scroll position
-    # values
     
-    TRANPARENT_TILE = 0
-
     DOOM_BOUNDARY_LIMIT = 50
     
-    def __init__(self, scene, mapfile):
+    def __init__(self, scene):
         pygame.sprite.Sprite.__init__(self)
-        self.mapfile = mapfile
         self.scene = scene
         self.screen = self.scene.screen
+        
         self.tileImages = []
         self.groups = []
 
-        self.row = 0
-        self.column = 0
         self.scrollx = 0
         self.scrolly = 0
         
-        self.startx = self.starty = 0
         self.boundary = Boundary(False, False, False, False)
         
-        self.__loadFile()
-        self.__loadImages()
-        self.__setSize()
-        self.__setStartPosition()
-        self.__loadTiles()
-        self.__renderMap()
-        self.__loadEntities()
-        self.init() 
         
-    def __loadEntities(self):
-        self.entityData = self.data[gameEngineUtil.MAP_ENTITIES]
-        
-    def __loadFile(self):
-        self.data = gameEngineUtil.load_tileMap(self.mapfile)
-        
-    def __loadTiles(self):
-        # Loads the tile values from the level datafile and stores
-        # them into a 2d list.
-        self.tiles = []
-        row = 0
-        
-        for tileRow in self.data[gameEngineUtil.MAP_TOKENS]:
-            self.tiles.append([])  
-            for tile in tileRow:
-                self.tiles[row].append(tile)
-                
-            row += 1
+    def loadTileImages(self, directory, tileFiles):
+        for tileFile in tileFiles:
+            self.tileImages.append(pygame.image.load(directory + tileFile))
+              
+    def setTileSize(self, size):
+        self.tilesize = size
+                                            
+    def addGroup(self, group):
+        self.groups.append(group)
             
-        self.row = len(self.tiles[0])
-        self.column = len(self.tiles)
+    def setTiles(self, tokens):
+        self.tiles = tokens
         
-    def __setSize(self):
-        # Sets the size based on the level data file specifications, [size] section.
-        self.size = self.data[gameEngineUtil.MAP_SIZE]
+
     
-    def __setStartPosition(self):
-        # Sets the start position coordinate for the player
-        self.startx, self.starty = self.data[gameEngineUtil.MAP_STARTLOCATION]
         
-    def __loadImages(self):
-        # Load tile images into memory. All tiles refer to these tile images.
-        # Tile images are specified in the level data file, [imgs] section.
-        for tileImageFile in self.data[gameEngineUtil.MAP_IMG]:
-            self.tileImages.append(pygame.image.load(gameEngineUtil.DIR_GFX + 
-                                                self.data[gameEngineUtil.MAP_IMGDIR] + tileImageFile))
-    
+
     def __renderMap(self):
-        # Renders the map based on the scroll position.
-        # This saves image memory usage to that of only the
-        # size of the screen. Only tiles are rendered.
-        # Note* tiles are not sprites inside this class and
-        # can not be customized to act like sprites. One must
-        # set the tile to a transparent tile for the tile to
-        # not be visible. Value for transparent tile is typically 0.
-            
-        screen = self.scene.screen
-        screenWidth = screen.get_width()
-        screenHeight = screen.get_height()
+        screenWidth = self.screen.get_width()
+        screenHeight = self.screen.get_height()
         
-        tilesPerRow = screenWidth / self.size + 1
-        tilesPerColumn = screenHeight / self.size + 1
+        tilesPerRow = screenWidth / self.tilesize + 1
+        tilesPerColumn = screenHeight / self.tilesize + 1
         
-        firstTileIX = self.scrollx / self.size
-        firstTileIY = self.scrolly / self.size
-        tileOffSetX = firstTileIX * self.size - self.scrollx
-        tileOffSetY = firstTileIY * self.size - self.scrolly
+        firstTileIX = self.scrollx / self.tilesize
+        firstTileIY = self.scrolly / self.tilesize
+        tileOffSetX = firstTileIX * self.tilesize - self.scrollx
+        tileOffSetY = firstTileIY * self.tilesize - self.scrolly
         originalOffSetX = tileOffSetX
         
         self.image = pygame.surface.Surface((screenWidth, screenHeight), pygame.SRCALPHA)
@@ -126,11 +80,11 @@ class TileMap(pygame.sprite.Sprite):
         for tileY in range(firstTileIY, firstTileIY + tilesPerColumn):
             for tileX in range(firstTileIX, firstTileIX + tilesPerRow):
                 self.image.blit(self.tileImages[self.tiles[tileY][tileX]], (tileOffSetX, tileOffSetY), 
-                                pygame.rect.Rect((0,0), (self.size, self.size)))
-                tileOffSetX += self.size
+                                pygame.rect.Rect((0,0), (self.tilesize, self.tilesize)))
+                tileOffSetX += self.tilesize
 
             tileOffSetX = originalOffSetX
-            tileOffSetY += self.size
+            tileOffSetY += self.tilesize
   
         self.rect = self.image.get_rect()
         
@@ -188,13 +142,13 @@ class TileMap(pygame.sprite.Sprite):
                 sprite.rect.right > mapWidth + self.DOOM_BOUNDARY_LIMIT or \
                 sprite.rect.top < -self.DOOM_BOUNDARY_LIMIT or \
                 sprite.rect.bottom > mapHeight + self.DOOM_BOUNDARY_LIMIT:
-                    sprite.kill()
+                    sprite.isDead = True
 
                 # Check tile collisions
-                topIndex = int(sprite.rect.top) / self.size
-                bottomIndex = int(sprite.rect.bottom) / self.size + 1
-                leftIndex = int(sprite.rect.left) / self.size
-                rightIndex = int(sprite.rect.right) / self.size + 1
+                topIndex = int(sprite.rect.top) / self.tilesize
+                bottomIndex = int(sprite.rect.bottom) / self.tilesize + 1
+                leftIndex = int(sprite.rect.left) / self.tilesize
+                rightIndex = int(sprite.rect.right) / self.tilesize + 1
 
                 allTransparent = True
                 sprite.collisionDirs = []
@@ -210,12 +164,16 @@ class TileMap(pygame.sprite.Sprite):
                             performCollisionCheck = False
                             
                         if performCollisionCheck:
+                            #If tile is a spike kill the sprite
+                            if self.tiles[iy][ix] == self.SPIKE_TILE:
+                                sprite.isDead = True
+                            
                             allTransparent = False
-                            tilePosition = (ix * self.size, iy * self.size)
+                            tilePosition = (ix * self.tilesize, iy * self.tilesize)
                             # Get last location
                             
                             collisionDirs = sprite.collisionDirection((tilePosition[0], tilePosition[1], 
-                                                                                   self.size, self.size))
+                                                                                   self.tilesize, self.tilesize))
                             sprite.collisionDirs.extend(collisionDirs)
                             sprite.collisionDirs = list(set(sprite.collisionDirs))
                             
@@ -223,15 +181,16 @@ class TileMap(pygame.sprite.Sprite):
                                 if direction == sprite.COLLIDE_TOP:
                                     sprite.rect.bottom = tilePosition[1] 
                                     sprite.setDY(0)
+                                    sprite.setDX(0)
                                     sprite.falling = False
                                 elif direction == sprite.COLLIDE_BOTTOM:
-                                    sprite.rect.top = tilePosition[1] + self.size
+                                    sprite.rect.top = tilePosition[1] + self.tilesize
                                     sprite.setDY(0)
                                 elif direction == sprite.COLLIDE_LEFT:
                                     sprite.rect.right = tilePosition[0]
                                     sprite.setDX(0)
                                 elif direction == sprite.COLLIDE_RIGHT:
-                                    sprite.rect.left = tilePosition[0] + self.size
+                                    sprite.rect.left = tilePosition[0] + self.tilesize
                                     sprite.setDX(0)
 
                 if allTransparent:
@@ -260,9 +219,7 @@ class TileMap(pygame.sprite.Sprite):
         self.groups = []
         self.init()
         
-    def addGroup(self, group):
-        # Add group to groups
-        self.groups.append(group)
+
         
     def grabGroups(self):
         #Returns the tile maps entities (group)
@@ -291,12 +248,12 @@ class TileMap(pygame.sprite.Sprite):
     def getSize(self):
         # Returns a tuple (map width, map height).
         # Remove the buffer tiles around the right and bottom edges.
-        return ((self.row - 1) * self.size, (self.column - 1) * self.size)
+        return ((len(self.tiles[0]) - 1) * self.tilesize, len(self.tiles) * self.tilesize)
                     
     def getIndexSize(self):
         # Returns a tuple (index width, index height).
         # The index values of the map are returned.
-        return (self.row -1, self.column - 1)
+        return (len(self.tiles[0]), len(self.tiles))
         
     def getTileAt(self, ix, iy):
         return self.tiles[iy][ix]
@@ -308,7 +265,7 @@ class TileMap(pygame.sprite.Sprite):
             return True
         
     def getIndexAt(self, x, y):
-        return (int(x / self.size), int(y / self.size))
+        return (int(x / self.tilesize), int(y / self.tilesize))
     
     def init(self):
         #Used to initialize map. Feel free to override and 
@@ -373,6 +330,7 @@ class MySprite(pygame.sprite.Sprite):
         self.idle = False
         self.walking = False
         self.horizontalFacing = self.FACE_RIGHT
+        self.isDead = False
         
     def __applyFlags(self):
         physics = self.scene.physics
@@ -469,7 +427,11 @@ class MySprite(pygame.sprite.Sprite):
         self.dy += amt
         self.__updateVector()
         
-             
+            
+    def setSpeed(self, speed): 
+        self.speed = speed
+        self.__updateVector()
+        
     def collidesWith(self, target):
         """ boolean function. Returns True if the sprite
             is currently colliding with the target rect,
@@ -530,6 +492,9 @@ class MySprite(pygame.sprite.Sprite):
         self.__applyFlags()
         self.__calcPosition()
 
+    def doEvents(self, event):
+        pass
+    
 """ MyFontSprite """
 #A font sprite used for quick text.
 #Pass in the text, size, and center.
@@ -1031,17 +996,20 @@ class SuperSprite(pygame.sprite.Sprite):
     update functions.
     """
 class Scene(object):  
+    STOP_ANY_KEY = 0
+    STOP_ESC = 1
+    STOP_NEVER = -1
     #Constructor for our scene object. Takes in width and height parameters which is
     #used for our display screen.  
-    def __init__(self, (width, height)):
+    def __init__(self, (width, height), title):
         #Initialize pygame and the screen in full screen mode with an black background.
         pygame.init()
         self.width = width
         self.height = height
-        self.screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((width, height))
         self.background = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
-        self.screen.blit(self.background, (0, 0))
-        
+        self.background.fill((0,0,0))
+        self.setCaption(title)
         #Create our physics engine
         self.physics = Physics()
         
@@ -1051,9 +1019,14 @@ class Scene(object):
         self.groups = []
         self.exit = False
         self.keepGoing = True
+        self.stopBound = self.STOP_ANY_KEY
         
         self.clock = pygame.time.Clock()
         pygame.mouse.set_visible(False)
+        
+    #Sets the scene on how it should stop. This bound is automatically handled in doEvents.
+    def setStopBounds(self, bound):
+        self.stopBound = bound
         
     #Start the scene.
     def start(self):
@@ -1073,6 +1046,7 @@ class Scene(object):
     #The main loop which executes the scene. The loop updates and renders the game and
     #calls doEvents automatically.
     def __mainLoop(self):
+        
         while self.keepGoing:
             keys = pygame.key.get_pressed()
             self.clock.tick(30)
@@ -1080,7 +1054,10 @@ class Scene(object):
                 if event.type == pygame.QUIT or keys[pygame.K_ESCAPE]:
                     self.terminate()
                 self.doEvents(event)
-        
+                for group in self.groups:
+                    for sprite in group.sprites():
+                        sprite.doEvents(event)
+                    
             self.update()
             for group in self.groups:
                 group.update()
@@ -1096,7 +1073,12 @@ class Scene(object):
     #Processes any events issued and detected. It is automatically called in
     #the main loop.
     def doEvents(self, event):
-        pass
+        keys = pygame.key.get_pressed()
+        if event.type == pygame.KEYDOWN:
+            if self.stopBound == self.STOP_ANY_KEY:
+                self.stop()
+            if self.stopBound == self.STOP_ESC and keys[pygame.K_ESCAPE]:
+                self.stop()
         
     #Updates the scene. Is called automatically in the main loop.
     def update(self):

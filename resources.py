@@ -6,8 +6,10 @@ Created on Aug 8, 2013
 
 import pygame
 
+DATA_DIRECTORY = "data/"
 MFX_DIRECTORY = "mfx/"
 SFX_DIRECOTRY = "sfx/"
+GFX_DIRECTORY = "gfx/"
 
 #Sound Constants
 collectCoin = None
@@ -18,6 +20,7 @@ ritzShoot = None
 #Music Constants
 mfxSplashScene = MFX_DIRECTORY + "splash_scene_them.ogg"
 mfxStartScene = MFX_DIRECTORY + "intro_theme.ogg"
+mfxDeathTheme = MFX_DIRECTORY + "death.ogg"
 
 #Graphic Constants
 

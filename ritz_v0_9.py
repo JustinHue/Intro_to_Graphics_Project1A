@@ -8,18 +8,196 @@
                  
     Revision History: 0.9.0
 
-    
+        -> Added blood sprite.
+        -> Blood goes everywhere when ritz dies
+        -> Fixed issue on last life where death animation does not happen
+        -> Added spike tile
+        -> Player will die when colliding with spike tile
+        -> Goombas no longer go idle
+        -> ENemies now explode on death
+        -> Enemies can now die from spikes
+        -> Blood now dissappears faster
+        -> Fixed issue where tile map does not render bottom and right most portions
+        -> Fixed issue where ritz does not die if he falls out of bounds
+        -> Added StartSceneMap class. This will be the background for the start scene
+        -> Start scene is made out of tiles now, including the title "Ritz"
+        -> Added ritz tile map base class for all tile maps to reduce code load.
+        -> Added do events to my sprite object
+        -> Reduce ritz jump speed
+        -> Changing tile map object so entities are not bound to the map ***
+        -> Making ritz level loader object
+        -> Removed file loading for tile map object in game engine. (game engine util no longer required)
+            Keep it for now so we don't crash anything.
+        -> Created blood splatter object to hold blood objects in one package
+        -> New modules: enemies, miscellaneous, graphics
+        -> Fixed issue where blood splatter wasn't working anymore after puting it in graphics module
+        -> Fixed blood splatter effect where it used to create square splatters. It should now
+           be a circle blood splatter
+        -> Change tile collision on the top so that delta x becomes 0. This makes the blood splatter look better.
+           However this screws up the enemies AI. Enemy AI now must apply a new speed every update.
+        -> Removed empty area around scene tile map to enclose the player into one screen
+        -> Added instructions scene (after splash and before start scene)
 """
 import pygame, gameEngine, random
+import graphics
 import resources
 
 """ Scene Constants """
 SCENE_SPLASH = 0
-SCENE_START = 1
-SCENE_PLAY = 2
-SCENE_END = 3
+SCENE_INSTRUCTIONS = 1
+SCENE_START = 2
+SCENE_PLAY = 3
+SCENE_END = 4
 
 
+class RitzLevelLoader():
+    MAP_TOKENS = '[tokens]'
+    MAP_SIZE = '[size]'
+    MAP_IMG = '[imgs]'
+    MAP_IMGDIR = '[imgdir]'
+    MAP_STARTLOCATION = '[startlocation]'
+    MAP_ENTITIES = '[entities]'
+    MAP_SECTIONS = [MAP_TOKENS, MAP_SIZE, MAP_IMG, MAP_IMGDIR, MAP_STARTLOCATION, MAP_ENTITIES]
+    def __init__(self, datafile):
+        f = open(resources.DATA_DIRECTORY + datafile)
+        self.data = {'[tokens]':[], '[size]':0, '[imgs]':[], '[imgdir]':'', '[startlocation]':(0,0), '[entities]':[(0,0,0)]} 
+        reading = ""
+        
+        for line in f.readlines():
+            line = line.strip()
+        
+            for section in self.MAP_SECTIONS:
+                if line == section: 
+                    reading = line 
+            if reading == line:
+                continue
+            
+            if reading == self.MAP_TOKENS:
+                tokens = line.split(',')
+                self.data[self.MAP_TOKENS].append([])      
+                for token in tokens:       
+                    self.data[self.MAP_TOKENS][len(self.data[self.MAP_TOKENS])-1].append(int(token))            
+            elif reading == self.MAP_SIZE:
+                self.data[self.MAP_SIZE] = int(line)
+            elif reading == self.MAP_IMG:
+                self.data[self.MAP_IMG].append(line)
+            elif reading == self.MAP_IMGDIR:
+                self.data[self.MAP_IMGDIR] = line
+            elif reading == self.MAP_STARTLOCATION:
+                tokens = line.split(',')
+                self.data[self.MAP_STARTLOCATION] = (int(tokens[0]), int(tokens[1]))
+            elif reading == self.MAP_ENTITIES:
+                tokens = line.split(',')
+                self.data[self.MAP_ENTITIES].append([tokens[0], int(tokens[1]), int(tokens[2])])
+                
+        f.close()
+        
+    def getTokens(self):
+        return self.data[self.MAP_TOKENS]
+    
+    def getTileSize(self):
+        return self.data[self.MAP_SIZE]
+    
+    def getTileDirectory(self):
+        return resources.GFX_DIRECTORY + self.data[self.MAP_IMGDIR]
+    
+    def getTileImages(self):
+        return self.data[self.MAP_IMG]
+    
+    def getStartLocation(self):
+        return self.data[self.MAP_STARTLOCATION]
+    
+    def getEntityInfo(self):
+        return self.data[self.MAP_ENTITIES]
+    
+    
+class RitzTileMap(gameEngine.TileMap):
+    DEATH_DELAY = 120
+    TRANPARENT_TILE = 0
+    SPIKE_TILE = 20
+    def __init__(self, scene, datafile): 
+        gameEngine.TileMap.__init__(self, scene)
+        """
+            Misc. Init
+        """
+        self.playDeathTheme = False
+        self.deathDelayCounter = 0        
+        self.setBoundary(True, True, True, False)
+        resources.playMusic(resources.mfxStartScene)
+        
+        """
+            Load and pass data file information
+        """
+        self.ritzLevelLoader = RitzLevelLoader(datafile)
+        self.loadTileImages(self.ritzLevelLoader.getTileDirectory(), self.ritzLevelLoader.getTileImages())
+        self.setTileSize(self.ritzLevelLoader.getTileSize())
+        self.setTiles(self.ritzLevelLoader.getTokens())
+
+        """
+            Load and add entities
+        """
+        self.ritzSprite = Ritz(self.scene, self, self.ritzLevelLoader.getStartLocation())
+        self.enemiesGroup = pygame.sprite.Group()
+        self.miscGroup = pygame.sprite.Group()
+
+        for data in self.ritzLevelLoader.getEntityInfo():
+            if data[0] == 'goomba':
+                self.enemiesGroup.add(Goomba(self.scene, self, (data[1], data[2])))
+            elif data[0] == 'coin':
+                self.miscGroup.add(Coin(self.scene, self, (data[1], data[2])))
+            elif data[0] == 'shyguy':
+                self.enemiesGroup.add(ShyGuy(self.scene, self, (data[1], data[2])))
+            elif data[0] == 'door':
+                self.addSprite(Door(self.scene, self, (data[1], data[2])))
+             
+        self.addSprite(self.ritzSprite)   
+        self.addGroup(self.enemiesGroup)
+        self.addGroup(self.miscGroup)
+        
+    def reset(self):
+        resources.playMusic(resources.mfxStartScene)
+        self.ritzSprite = Ritz(self.scene, self, self.ritzLevelLoader.getStartLocation())
+        self.addSprite(self.ritzSprite) 
+        self.playDeathTheme = False 
+        
+    def __handleDeaths(self):
+        """
+            Ritz blood death splatter
+        """
+        if self.ritzSprite.isDead and not self.playDeathTheme:
+            self.playDeathTheme = True
+            self.playerDeath = True
+            resources.playMusic(resources.mfxDeathTheme, 1)
+            bloodSplatter = graphics.BloodSplatter(self.scene, 50, self.ritzSprite.rect.center)
+            self.addGroup(bloodSplatter.getBloodGroup())
+            self.ritzSprite.kill()
+            
+        if not self.ritzSprite.alive():
+            self.deathDelayCounter += 1
+            if self.deathDelayCounter == self.DEATH_DELAY:
+                self.deathDelayCounter = 0
+                self.reset()
+                
+    def update(self):
+        gameEngine.TileMap.update(self)
+        self.__handleDeaths()
+        """
+            Bound scroll to ritz's position
+        """
+        self.setScrollPosition(self.ritzSprite.rect.centerx - self.screen.get_width() / 2, 
+                               self.ritzSprite.rect.centery - self.screen.get_height() / 2)
+        
+    def doEvents(self, event):
+        if event.type == pygame.KEYUP:
+            if self.ritzSprite.shooting:
+                self.addSprite(RitzBullet(self.scene, self.ritzSprite.horizontalFacing,
+                                          self.ritzSprite.rect.center))
+                self.ritzSprite.sndShoot.play()
+                
+
+
+        
+              
 """ Score Counter """
 #Displays the current score using normal font, color white.
 class ScoreCounter(pygame.sprite.Sprite):
@@ -73,6 +251,10 @@ class LifeCounter(pygame.sprite.Sprite):
         self.__renderImage()
         
         
+
+        
+        
+        
 """ Door Sprite """
 class Door(gameEngine.MySprite):
     def __init__(self, scene, center):
@@ -95,10 +277,10 @@ class Door(gameEngine.MySprite):
 class Coin(gameEngine.MySprite):
     IDLE_IMG_MAX = 8
     POINTS = 25
-    def __init__(self, scene, center):
+    def __init__(self, scene, tileMap, center):
         gameEngine.MySprite.__init__(self, scene, center, "misc/coin0.png")
         self.idleImages = []
-
+        self.tileMap = tileMap
         
         self.animationCounter = 0
         self.animationDelay = 1
@@ -164,12 +346,13 @@ class ShyGuy(gameEngine.MySprite):
     IDLE_WAIT = 80
     HEALTH_MAX = 50
     
-    def __init__(self, scene, center):
+    def __init__(self, scene, tileMap, center):
         gameEngine.MySprite.__init__(self, scene, center, "enemies/shyguy_idle0.png")        
         
         self.idleImages = []
         self.walkImages = []
-
+        self.tileMap = tileMap
+        
         self.animationCounter = 0
         self.animationDelay = 1
         self.delayCounter = 0
@@ -242,7 +425,6 @@ class ShyGuy(gameEngine.MySprite):
         #The AI for shyguy is they move back and forth. They will
         #fall into pits. After a certain random delay they will stop
         #and stay idle.
-        self.tileMap = self.scene.currentLevel
         
         if self.falling:
             self.onGround = False
@@ -279,15 +461,18 @@ class ShyGuy(gameEngine.MySprite):
                 self.setDX(-self.WALK_SPEED)
                 
         #Kill Ritz on collison
-        if self.collidesWith(self.tileMap.ritzSprite.rect):
-            self.tileMap.ritzSprite.kill()
+        if self.tileMap.ritzSprite != None:
+            if self.collidesWith(self.tileMap.ritzSprite.rect):
+                self.tileMap.ritzSprite.isDead = True
             
         #Make shy guy jump if there is a tile infront
         if self.horizontalFacing == self.FACE_LEFT:
             adjacentDir = -2
+            self.setDX(-self.WALK_SPEED)
         elif self.horizontalFacing == self.FACE_RIGHT:
             adjacentDir = 2
-        
+            self.setDX(self.WALK_SPEED)
+    
         #Get tile index of shy guy
         (ixPosition, iyPosition) = self.tileMap.getIndexAt(self.rect.centerx, self.rect.centery)
         adjacentTile = self.tileMap.getTileAt(ixPosition + adjacentDir, iyPosition)
@@ -295,18 +480,16 @@ class ShyGuy(gameEngine.MySprite):
         
         if checkAdjacentTile:
             self.jump = True
-            print 'jumping'
             
         if self.jump and self.onGround:
             self.setDY(self.JUMP_SPEED)
-            print 'executed'
             self.jump = False
             self.onGround = False
         
     def deductHealth(self, amt):
         self.health -= amt
         if self.health <= 0:
-            self.kill()
+            self.isDead = True
             
     def update(self):
         gameEngine.MySprite.update(self)
@@ -328,12 +511,13 @@ class Goomba(gameEngine.MySprite):
     IDLE_WAIT = 80
     HEALTH_MAX = 30
     
-    def __init__(self, scene, center):
+    def __init__(self, scene, tileMap, center):
         gameEngine.MySprite.__init__(self, scene, center, "enemies/goomba_idle0.png")        
         
         self.idleImages = []
         self.walkImages = []
-
+        self.tileMap = tileMap
+        
         self.animationCounter = 0
         self.animationDelay = 1
         self.delayCounter = 0
@@ -398,14 +582,17 @@ class Goomba(gameEngine.MySprite):
         #Set to the correct facing
         if self.horizontalFacing == self.FACE_LEFT:
             self.hflip()  
+            self.setDX(-self.WALK_SPEED)
+        else:
+            self.setDX(self.WALK_SPEED)
             
     def __AI(self):
         #The AI for goombas is they move back and forth. They will
         #fall into pits. After a certain random delay they will stop
         #and stay idle.
-        self.tileMap = self.scene.currentLevel
         
         #Prepare to be idle
+        """
         if self.idleCounter == self.idleDelay:
             self.idleWaitCounter += 1
             if self.idleWaitCounter == self.IDLE_WAIT:
@@ -419,7 +606,7 @@ class Goomba(gameEngine.MySprite):
                 self.setDX(0)
         else:
             self.idleCounter += 1
-
+            """
             
         #If goomba hits a wall (left or right) reverse direction
         if self.wallCollision == self.COLLIDE_LEFT:
@@ -435,13 +622,14 @@ class Goomba(gameEngine.MySprite):
                 self.setDX(-self.WALK_SPEED)
                 
         #Kill Ritz on collison
-        if self.collidesWith(self.tileMap.ritzSprite.rect):
-            self.tileMap.ritzSprite.kill()
-            
+        if self.tileMap.ritzSprite != None:
+            if self.collidesWith(self.tileMap.ritzSprite.rect):
+                self.tileMap.ritzSprite.isDead = True
+                
     def deductHealth(self, amt):
         self.health -= amt
         if self.health <= 0:
-            self.kill()
+            self.isDead = True
             
     def update(self):
         gameEngine.MySprite.update(self)
@@ -484,7 +672,6 @@ class RitzBullet(gameEngine.MySprite):
     def __AI(self):
         #Ai of bullet checks for collisions with other entities, and
         #damages them. On collision the object will be destroyed.
-        self.tileMap = self.scene.currentLevel
         self.scoreBoard = self.scene.scoreCounterSprite
         enemiesHit = pygame.sprite.spritecollide(self, self.tileMap.enemiesGroup, False)
         for enemy in enemiesHit:
@@ -512,11 +699,13 @@ class Ritz(gameEngine.MySprite):
     JUMPING_IMG_MAX = 2
     
     WALK_SPEED = 5
-    JUMP_SPEED = -15
+    JUMP_SPEED = -10
     
-    def __init__(self, scene, center):
+    def __init__(self, scene, tileMap, center):
         gameEngine.MySprite.__init__(self, scene, center, "ritz/idle0.png")
 
+        self.tileMap = tileMap
+        
         self.idleImages = []
         self.walkImages = []
         self.jumpingImages = []
@@ -619,11 +808,11 @@ class Ritz(gameEngine.MySprite):
             self.hflip()  
             
     def __handleCollision(self):
-        tileMap = self.scene.currentLevel
-        coinGroup = tileMap.coinGroup
+        tileMap = self.tileMap
+        miscGroup = tileMap.miscGroup
         scoreBoard = self.scene.scoreCounterSprite
         
-        for coin in pygame.sprite.spritecollide(self, coinGroup, False):
+        for coin in pygame.sprite.spritecollide(self, miscGroup, False):
             coin.sndCoin.play()
             scoreBoard.addScore(coin.POINTS)
             coin.kill()
@@ -639,6 +828,7 @@ class Ritz(gameEngine.MySprite):
 
             
 
+                
 """ Level Classes """
 class LevelOne(gameEngine.TileMap):
     
@@ -658,7 +848,7 @@ class LevelOne(gameEngine.TileMap):
         self.setBoundary(True, True, True, False)
         
         #Create Ritz Sprite
-        self.ritzSprite = Ritz(self.scene, (self.startx, self.starty))
+        self.ritzSprite = Ritz(self.scene, self, (self.startx, self.starty))
         
         #Create other entitiy sprites
         self.enemiesGroup = pygame.sprite.Group()
@@ -666,11 +856,11 @@ class LevelOne(gameEngine.TileMap):
         self.doorGroup = pygame.sprite.Group()
         for data in self.entityData:
             if data[0] == 'goomba':
-                self.enemiesGroup.add(Goomba(self.scene, (data[1], data[2])))
+                self.enemiesGroup.add(Goomba(self.scene, self, (data[1], data[2])))
             elif data[0] == 'coin':
-                self.coinGroup.add(Coin(self.scene, (data[1], data[2])))
+                self.coinGroup.add(Coin(self.scene, self, (data[1], data[2])))
             elif data[0] == 'shyguy':
-                self.enemiesGroup.add(ShyGuy(self.scene, (data[1], data[2])))
+                self.enemiesGroup.add(ShyGuy(self.scene, self, (data[1], data[2])))
             elif data[0] == 'door':
                 self.doorGroup.add(Door(self.scene, (data[1], data[2])))
                 
@@ -688,12 +878,16 @@ class LevelOne(gameEngine.TileMap):
     def __handleDeaths(self):
         self.playerDeath = False
         #Check if ritz is dead and play death theme
-        if not self.ritzSprite.alive() and not self.playDeathTheme:
+        if self.ritzSprite.isDead and not self.playDeathTheme:
             self.playDeathTheme = True
             self.playerDeath = True
             pygame.mixer.music.load("mfx/death.ogg")
             pygame.mixer.music.play()
-        
+            #Poor blood everywhere
+            for bloodCount in range(0, 50):
+                self.addSprite(Blood(self.scene, (self.ritzSprite.rect.center)))
+            self.ritzSprite.kill()
+            
         #Create delay on death, then reset level
         if not self.ritzSprite.alive():
             self.deathDelayCounter += 1
@@ -701,6 +895,13 @@ class LevelOne(gameEngine.TileMap):
                 self.deathDelayCounter = 0
                 self.reset()
                 
+        #Check if any other sprites are dead
+        for enemy in self.enemiesGroup.sprites():
+            if enemy.isDead:
+                for bloodCount in range(0, 20):
+                    self.addSprite(Blood(self.scene, (enemy.rect.center)))
+                enemy.kill()
+          
     def update(self):
         #Update tile map. Call base class update function and
         #proceed with own update code. 
@@ -739,7 +940,7 @@ class LevelTwo(gameEngine.TileMap):
         self.setBoundary(True, True, True, False)
         
         #Create Ritz Sprite
-        self.ritzSprite = Ritz(self.scene, (self.startx, self.starty))
+        self.ritzSprite = Ritz(self.scene, self, (self.startx, self.starty))
         
         #Create other entitiy sprites
         self.enemiesGroup = pygame.sprite.Group()
@@ -747,11 +948,11 @@ class LevelTwo(gameEngine.TileMap):
         self.doorGroup = pygame.sprite.Group()
         for data in self.entityData:
             if data[0] == 'goomba':
-                self.enemiesGroup.add(Goomba(self.scene, (data[1], data[2])))
+                self.enemiesGroup.add(Goomba(self.scene, self, (data[1], data[2])))
             elif data[0] == 'coin':
-                self.coinGroup.add(Coin(self.scene, (data[1], data[2])))
+                self.coinGroup.add(Coin(self.scene, self, (data[1], data[2])))
             elif data[0] == 'shyguy':
-                self.enemiesGroup.add(ShyGuy(self.scene, (data[1], data[2])))
+                self.enemiesGroup.add(ShyGuy(self.scene, self, (data[1], data[2])))
             elif data[0] == 'door':
                 self.doorGroup.add(Door(self.scene, (data[1], data[2])))
                 
@@ -769,18 +970,29 @@ class LevelTwo(gameEngine.TileMap):
     def __handleDeaths(self):
         self.playerDeath = False
         #Check if ritz is dead and play death theme
-        if not self.ritzSprite.alive() and not self.playDeathTheme:
+        if self.ritzSprite.isDead and not self.playDeathTheme:
             self.playDeathTheme = True
             self.playerDeath = True
             pygame.mixer.music.load("mfx/death.ogg")
             pygame.mixer.music.play()
-        
+            #Poor blood everywhere
+            for bloodCount in range(0, 50):
+                self.addSprite(Blood(self.scene, (self.ritzSprite.rect.center)))
+            self.ritzSprite.kill()
+            
         #Create delay on death, then reset level
         if not self.ritzSprite.alive():
             self.deathDelayCounter += 1
             if self.deathDelayCounter == self.DEATH_DELAY:
                 self.deathDelayCounter = 0
                 self.reset()
+                
+        #Check if any other sprites are dead
+        for enemy in self.enemiesGroup.sprites():
+            if enemy.isDead:
+                for bloodCount in range(0, 20):
+                    self.addSprite(Blood(self.scene, (enemy.rect.center)))
+                enemy.kill()
                 
     def update(self):
         #Update tile map. Call base class update function and
@@ -821,7 +1033,7 @@ class LevelThree(gameEngine.TileMap):
         self.setBoundary(True, True, True, False)
         
         #Create Ritz Sprite
-        self.ritzSprite = Ritz(self.scene, (self.startx, self.starty))
+        self.ritzSprite = Ritz(self.scene, self, (self.startx, self.starty))
         
         #Create other entitiy sprites
         self.enemiesGroup = pygame.sprite.Group()
@@ -829,11 +1041,11 @@ class LevelThree(gameEngine.TileMap):
         self.doorGroup = pygame.sprite.Group()
         for data in self.entityData:
             if data[0] == 'goomba':
-                self.enemiesGroup.add(Goomba(self.scene, (data[1], data[2])))
+                self.enemiesGroup.add(Goomba(self.scene, self, (data[1], data[2])))
             elif data[0] == 'coin':
-                self.coinGroup.add(Coin(self.scene, (data[1], data[2])))
+                self.coinGroup.add(Coin(self.scene, self, (data[1], data[2])))
             elif data[0] == 'shyguy':
-                self.enemiesGroup.add(ShyGuy(self.scene, (data[1], data[2])))
+                self.enemiesGroup.add(ShyGuy(self.scene, self, (data[1], data[2])))
             elif data[0] == 'door':
                 self.doorGroup.add(Door(self.scene, (data[1], data[2])))
                 
@@ -885,9 +1097,11 @@ class LevelThree(gameEngine.TileMap):
                 self.ritzSprite.sndShoot.play()
                 
                 
+        
+
 class GamePlayScene(gameEngine.Scene):
-    def __init__(self, (width, height)):
-        gameEngine.Scene.__init__(self, (width, height))
+    def __init__(self, (width, height), title):
+        gameEngine.Scene.__init__(self, (width, height), title)
         self.playDeathTheme = False
         self.physics = gameEngine.Physics()
                 
@@ -908,6 +1122,7 @@ class GamePlayScene(gameEngine.Scene):
         self.currentLevel = level
         
         self.backgroundSprite = gameEngine.MySprite(self, (self.screen.get_width() / 2, self.screen.get_height() / 2), "169721-super-mario-super-mario.png.jpeg")
+        self.backgroundSprite.image.fill((0, 0, 0))
         self.lifeCounterSprite = LifeCounter((45, 35))
         self.scoreCounterSprite = ScoreCounter((self.screen.get_width() - 150, 20))
         
@@ -932,14 +1147,15 @@ class GamePlayScene(gameEngine.Scene):
         self.gameScore = self.scoreCounterSprite.score
         if self.currentLevel.playerDeath:
             self.lifeCounterSprite.removeLife()
-            if self.lifeCounterSprite.lives == 0:
-                self.stop()
         elif self.currentLevel.playerWon:
             if self.currentLevel == self.levelOne:
                 self.__changeLevel(self.levelTwo)
             elif self.currentLevel == self.levelTwo:
                 self.__changeLevel(self.levelThree)
-                
+        
+        if self.lifeCounterSprite.lives == 0 and self.currentLevel.deathDelayCounter == 0:
+            self.stop()
+                 
     def doEvents(self, event):
         self.currentLevel.doEvents(event)
         
@@ -950,8 +1166,8 @@ class GamePlayScene(gameEngine.Scene):
 
         
 class GameEndScene(gameEngine.Scene):
-    def __init__(self, gameScore, (width, height)):
-        gameEngine.Scene.__init__(self, (width, height))
+    def __init__(self, gameScore, (width, height), title):
+        gameEngine.Scene.__init__(self, (width, height), title)
         self.gameScore = gameScore
         
         screenWidth = self.screen.get_width()
@@ -985,58 +1201,53 @@ class GameEndScene(gameEngine.Scene):
             
     
 class StartScene(gameEngine.Scene):
-    def __init__(self, (width, height)):
-        gameEngine.Scene.__init__(self, (width, height))
-        
+    def __init__(self, (width, height), title):
+        gameEngine.Scene.__init__(self, (width, height), title)
+        self.startSceneMap = RitzTileMap(self, "start.dat")
+        """
+            Misc. Init
+        """        
+        self.scoreCounterSprite = None     
+        self.setStopBounds(self.STOP_NEVER)
 
-        #Start intro theme
-        resources.playMusic(resources.mfxStartScene)
-
-        #Create fonts sprites
-        self.instructionSprite1 = gameEngine.MyFontSprite("You control Ritz using the keyboard. W - jump, A - Move left, D - Move Right, SPACE - Shoot ", 20, 
-                                                         (self.width / 2 - 20, 200), (255,255,255))
-        self.instructionSprite2 = gameEngine.MyFontSprite("You must go through the level until your reach the door. Reaching the door leads to a new level", 20, 
-                                                         (self.width  / 2 - 20, 240), (255,255,255))        
-        self.instructionSprite3 = gameEngine.MyFontSprite("You have three lives and you die really easily. Good luck! Have fun!", 20, 
-                                                         (self.width  / 2 - 20, 280), (255,255,255))  
-        
-        self.continueSprite = gameEngine.MyFontSprite("Press any key to play again", 32,
-                                                    (self.width  / 2, self.height - 100), (255,255,255))
-        
-        self.backgroundSprite = gameEngine.MySprite(self, (self.width  / 2, self.height / 2), "background.png")
-        
-        #Create groups for scene
-        self.backgroundGroup = pygame.sprite.Group(self.backgroundSprite)
-        self.fontGroup = pygame.sprite.Group(self.instructionSprite1, self.instructionSprite2, 
-                                             self.instructionSprite3, self.continueSprite)
-        
-        
-        #Add groups to scene
+        """
+            Create and add sprite groups
+        """
+        self.backgroundGroup = pygame.sprite.Group(self.startSceneMap)
         self.addGroup(self.backgroundGroup)
-        self.addGroup(self.fontGroup)
-        
 
-    def doEvents(self, event):
-        if event.type == pygame.KEYDOWN:
-            self.stop()
-   
+class InstructionsScene(gameEngine.Scene):
+    def __init__(self, (width, height), title):
+        gameEngine.Scene.__init__(self, (width, height), title)
+        self.instructionSceneMap = RitzTileMap(self, "instructions.dat")
+        
+        """
+            Misc. Init
+        """        
+        self.scoreCounterSprite = None     
+        self.setStopBounds(self.STOP_NEVER)
+
+        """
+            Create and add sprite groups
+        """
+        self.backgroundGroup = pygame.sprite.Group(self.instructionSceneMap)
+        self.addGroup(self.backgroundGroup)
+        
 class SplashScene(gameEngine.Scene):
     SPLASH_DEPLAY = 120
-    def __init__(self, (width, height)):
-        gameEngine.Scene.__init__(self, (width, height))
-        
+    def __init__(self, (width, height), title):
+        gameEngine.Scene.__init__(self, (width, height), title)
+        """
+            Misc. Init
+        """
         self.splashCount = 0
-        
-        #Start splash scene theme
         resources.playMusic(resources.mfxSplashScene, 1)
-
-        self.backgroundSprite = gameEngine.MySprite(self, (self.width / 2, self.height / 2), 
-                                                    "splashscreen.png")
         
-        #Create groups for scene
+        """
+            Create and add sprite groups
+        """
+        self.backgroundSprite = gameEngine.MySprite(self, (self.width / 2, self.height / 2), "splashscreen.png")
         self.backgroundGroup = pygame.sprite.Group(self.backgroundSprite)
-
-        #Add groups to scene
         self.addGroup(self.backgroundGroup)
 
         
@@ -1044,60 +1255,52 @@ class SplashScene(gameEngine.Scene):
         gameEngine.Scene.update(self)
         self.__countDown()
         
+    """
+        Splash scene delay handler
+    """
     def __countDown(self):
         if self.splashCount == self.SPLASH_DEPLAY:
             self.splashCount = 0
             self.stop()
         else:
             self.splashCount += 1
-            
-    def doEvents(self, event):
-        if event.type == pygame.KEYDOWN:
-            self.stop()
-            
-#The main function for the game. This handles the flow of the scenes,
-#starting with the splash screen, start scene(menu), play scene, and end scene.
+
+
+"""
+    The life of our program. Runs the game scenes sequentially.
+    Follows the order: Splash Scene, Start Scene, Play Scene, End Scene.          
+"""
 def main():
-    #Initialize pygame and resources
     resources.init()
-    
-    #Scene handling variables
+
     sceneFlow = SCENE_SPLASH
     programExit = False
-    
-    #Scene flow loop
+
     while not programExit:
         if sceneFlow == SCENE_SPLASH:
-            splashScene = SplashScene((800, 600))
-            splashScene.setCaption("Ritz by Justin Hellsten - Splash Scene")
+            splashScene = SplashScene((800, 600), "Ritz by Justin Hellsten - Splash")
             splashScene.start()
             programExit = splashScene.exit
+        elif sceneFlow == SCENE_INSTRUCTIONS:
+            instructionScene = InstructionsScene((800, 600), "Ritz by Justin Hellsten - Instructions")
+            instructionScene.start()
+            programExit = instructionScene.exit
         elif sceneFlow == SCENE_START:
-            startScene = StartScene((800, 600))
-            startScene.setCaption("Ritz by Justin Hellsten - Start Scene")
+            startScene = StartScene((800, 600), "Ritz by Justin Hellsten - Start")
             startScene.start()
             programExit = startScene.exit
         elif sceneFlow == SCENE_PLAY:
-            gamePlayScene = GamePlayScene((800, 600))
-            gamePlayScene.setCaption("Ritz by Justin Hellsten - Play Scene")
+            gamePlayScene = GamePlayScene((800, 600), "Ritz by Justin Hellsten - Play")
             gamePlayScene.start()
             programExit = gamePlayScene.exit
         elif sceneFlow == SCENE_END:
-            endGameScene = GameEndScene(gamePlayScene.gameScore, (800, 600))
-            endGameScene.setCaption("Ritz by Justin Hellsten - End Scene")
-            #Pass Information to end game scene
+            endGameScene = GameEndScene(gamePlayScene.gameScore, (800, 600), "Ritz by Justin Hellsten - End")
             endGameScene.start()
             programExit = endGameScene.exit
 
         sceneFlow += 1
         if sceneFlow > SCENE_END:
             sceneFlow = 0
-            
-        
 
-   
-    
-    
-        
 if __name__ == "__main__": main()
     
