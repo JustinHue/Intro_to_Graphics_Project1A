@@ -1061,7 +1061,7 @@ class Scene(object):
         pygame.init()
         self.width = width
         self.height = height
-        self.screen = pygame.display.set_mode((width, height))
+        self.screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
         self.background = pygame.Surface(self.screen.get_size())
         self.background.fill((0,0,0))
         self.setCaption(title)
