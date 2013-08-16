@@ -18,15 +18,25 @@ ritzJump = None
 ritzShoot = None
 
 #Music Constants
-mfxSplashScene = MFX_DIRECTORY + "splash_scene_them.ogg"
-mfxStartScene = MFX_DIRECTORY + "intro_theme.ogg"
-mfxDeathTheme = MFX_DIRECTORY + "death.ogg"
+MFX_SPLASHSCENE = MFX_DIRECTORY + "splash_scene_them.ogg"
+MFX_INTRO_THEME = MFX_DIRECTORY + "intro_theme.ogg"
+MFX_LEVEL_ONE_THEME = MFX_DIRECTORY + "t1.ogg"
+MFX_GAME_OVER = MFX_DIRECTORY + "game_over.ogg"
 
 #Graphic Constants
+DOOR_IMAGE = None
 
+#Text Constants
+howToMoveCharacterText = ("Use A and D to ", "move your character")
+howToShootText = ("Press SPACE bar ", "to shoot bullets")
+howToJumpText = ("Press W to make ", "your character jump")
+howToEnterDoorText = ("Press S when on ", "a door to enter")
+PLAY_TEXT = ("Play", "")
+EXIT_TEXT = ("Exit", "")
+GAME_OVER_TEXT = ("Game Over", "")
 
 def init():
-    pygame.mixer.init()
+    pygame.init()
     
     if pygame.mixer.get_init != None:  
         collectCoin = pygame.mixer.Sound("sfx/coin.ogg")
@@ -34,10 +44,15 @@ def init():
         ritzJump = pygame.mixer.Sound("sfx/ritz_jump.ogg")
         ritzShoot = pygame.mixer.Sound("sfx/ritz_bullet.ogg")
 
-        
+    DOOR_IMAGE = pygame.image.load("gfx/misc/door.png")
+    
 #Loads and plays a music theme
-def playMusic(music, loops = -1):
-    pygame.mixer.music.load(music)
-    pygame.mixer.music.play(loops)    
+def playMusic(music = None, loops = -1, volume = 1.0):
+    if music == None:
+        pygame.mixer.music.set_volume(0)
+    else:
+        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.music.load(music)
+        pygame.mixer.music.play(loops)    
     
         

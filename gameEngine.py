@@ -34,10 +34,13 @@ class TileMap(pygame.sprite.Sprite):
         pygame.sprite.Sprite.__init__(self)
         self.scene = scene
         self.screen = self.scene.screen
+        self.image = pygame.surface.Surface((0,0))
+        self.rect = self.image.get_rect()
         
         self.tileImages = []
         self.groups = []
-
+        self.staticGroups = []
+        
         self.scrollx = 0
         self.scrolly = 0
         
@@ -54,6 +57,9 @@ class TileMap(pygame.sprite.Sprite):
     def addGroup(self, group):
         self.groups.append(group)
             
+    def addStaticGroup(self, group):
+        self.staticGroups.append(group)
+        
     def setTiles(self, tokens):
         self.tiles = tokens
         
@@ -96,6 +102,16 @@ class TileMap(pygame.sprite.Sprite):
         # in virtual space but are rendered correctly to the screen here.
         screenWidth = self.screen.get_width()
         screenHeight = self.screen.get_height()
+        for staticGroup in self.staticGroups:
+            for sprite in staticGroup.sprites():
+                # if the entitity is visible on the screen, draw it
+                if sprite.rect.right > self.scrollx and \
+                    sprite.rect.left < self.scrollx + screenWidth and \
+                    sprite.rect.bottom > self.scrolly and \
+                    sprite.rect.top < self.scrolly + screenHeight:
+                        self.image.blit(sprite.image, (sprite.rect.left - self.scrollx, 
+                                        sprite.rect.top - self.scrolly))
+                                
         for group in self.groups:
             for sprite in group.sprites():
                 # if the entitity is visible on the screen, draw it
@@ -103,8 +119,8 @@ class TileMap(pygame.sprite.Sprite):
                     sprite.rect.left < self.scrollx + screenWidth and \
                     sprite.rect.bottom > self.scrolly and \
                     sprite.rect.top < self.scrolly + screenHeight:
-                    self.image.blit(sprite.image, (sprite.rect.left - self.scrollx, 
-                                                   sprite.rect.top - self.scrolly))
+                        self.image.blit(sprite.image, (sprite.rect.left - self.scrollx, 
+                                        sprite.rect.top - self.scrolly))
                     
                     
     def __checkGroupBounds(self):
@@ -142,8 +158,11 @@ class TileMap(pygame.sprite.Sprite):
                 sprite.rect.right > mapWidth + self.DOOM_BOUNDARY_LIMIT or \
                 sprite.rect.top < -self.DOOM_BOUNDARY_LIMIT or \
                 sprite.rect.bottom > mapHeight + self.DOOM_BOUNDARY_LIMIT:
-                    sprite.isDead = True
-
+                    try:
+                        sprite.die()
+                    except:
+                        pass
+                    
                 # Check tile collisions
                 topIndex = int(sprite.rect.top) / self.tilesize
                 bottomIndex = int(sprite.rect.bottom) / self.tilesize + 1
@@ -166,7 +185,12 @@ class TileMap(pygame.sprite.Sprite):
                         if performCollisionCheck:
                             #If tile is a spike kill the sprite
                             if self.tiles[iy][ix] == self.SPIKE_TILE:
-                                sprite.isDead = True
+                                try:
+                                    sprite.die()
+                                except:
+                                    pass     
+                                         
+                             
                             
                             allTransparent = False
                             tilePosition = (ix * self.tilesize, iy * self.tilesize)
@@ -280,11 +304,22 @@ class TileMap(pygame.sprite.Sprite):
         for group in self.groups:
             group.update()     
 
+        for staticGroup in self.staticGroups:
+            staticGroup.update()
+            
         self.__checkGroupBounds()
         self.__renderMap()
         self.__renderGroups()
 
-
+    def doEvents(self, event):
+        for group in self.groups:
+            for sprite in group:
+                sprite.doEvents(event)
+        for staticGroup in self.staticGroups:
+            for staticSprite in staticGroup:
+                staticSprite.doEvents(event)
+        
+    
 class MySprite(pygame.sprite.Sprite):
     # My sprite is a temporary name...
     # This sprite will replace super sprite. You can
@@ -331,7 +366,7 @@ class MySprite(pygame.sprite.Sprite):
         self.walking = False
         self.horizontalFacing = self.FACE_RIGHT
         self.isDead = False
-        
+       
     def __applyFlags(self):
         physics = self.scene.physics
         
@@ -495,26 +530,26 @@ class MySprite(pygame.sprite.Sprite):
     def doEvents(self, event):
         pass
     
-""" MyFontSprite """
-#A font sprite used for quick text.
-#Pass in the text, size, and center.
-#Can change most of the attributes using
-#mutator methods. Image changes accordingly.
+
 class MyFontSprite(pygame.sprite.Sprite):
-    def __init__(self, text, size, center, color):
+    def __init__(self, scene, (center), (width, height), text, size = 16, color = (255, 255, 255)):
         pygame.sprite.Sprite.__init__(self)
+        self.scene = scene
         self.text = text
         self.size = size
         self.center = center
         self.color = color
-        
+        self.image = pygame.surface.Surface((width, height), pygame.SRCALPHA)
+        self.rect = self.image.get_rect()
+        self.rect.center = self.center        
         self.__renderImage()
         
     def __renderImage(self):
         self.font = pygame.font.SysFont("None", self.size)
-        self.image = self.font.render(self.text, 1, self.color)
-        self.rect = self.image.get_rect()
-        self.rect.center = self.center
+        for index, line in enumerate(self.text):
+            fontSize = self.font.size(line)
+            self.fontImage = self.font.render(line, 1, self.color)                
+            self.image.blit(self.fontImage, (self.rect.width / 2 - fontSize[0] / 2, fontSize[1] * index))
         
     def changeText(self, text):
         self.text = text
@@ -532,6 +567,12 @@ class MyFontSprite(pygame.sprite.Sprite):
         self.center = self.center
         self.__renderImage()
 
+    def doEvents(self, event):
+        pass
+    
+    def update(self):
+        pass
+    
 
 
 
@@ -551,7 +592,19 @@ class MyFontSprite(pygame.sprite.Sprite):
 
 
 
-
+class MyBasicSprite(pygame.sprite.Sprite):
+    def __init__(self, center, image):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = image
+        self.rect = self.image.get_rect()
+        self.rect.center = center
+        
+    def update(self):
+        pass
+    
+    def doEvents(self, event):
+        pass
+    
 
 
 class BasicSprite(pygame.sprite.Sprite):
@@ -586,7 +639,9 @@ class BasicSprite(pygame.sprite.Sprite):
         if self.rect.bottom < 0:
             self.rect.bottom = scrHeight
 
-        
+    def die(self):
+        pass
+    
 class SuperSprite(pygame.sprite.Sprite):
     """ An enhanced Sprite class
         expects a gameEngine.Scene class as its one parameter
@@ -1007,7 +1062,7 @@ class Scene(object):
         self.width = width
         self.height = height
         self.screen = pygame.display.set_mode((width, height))
-        self.background = pygame.Surface(self.screen.get_size(), pygame.SRCALPHA)
+        self.background = pygame.Surface(self.screen.get_size())
         self.background.fill((0,0,0))
         self.setCaption(title)
         #Create our physics engine
@@ -1017,6 +1072,7 @@ class Scene(object):
         #Also initialize any other variables.
         self.sprites = []
         self.groups = []
+        self.topLayerGroup = []
         self.exit = False
         self.keepGoing = True
         self.stopBound = self.STOP_ANY_KEY
@@ -1063,13 +1119,19 @@ class Scene(object):
                 group.update()
                 group.clear(self.screen, self.background)
                 group.draw(self.screen)
-                
+            for group in self.topLayerGroup:
+                group.update()
+                group.clear(self.screen, self.background)
+                group.draw(self.screen) 
             pygame.display.flip()
-
+            
     #Adds group to the scene. All groups will be updated and drawn in the main loop.
     def addGroup(self, group):
         self.groups.append(group)
 
+    def addTopLayerGroup(self, group):
+        self.topLayerGroup.append(group)
+        
     #Processes any events issued and detected. It is automatically called in
     #the main loop.
     def doEvents(self, event):

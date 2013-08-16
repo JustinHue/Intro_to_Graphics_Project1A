@@ -66,4 +66,6 @@ tiles/
 [startlocation]
 63,472
 [entities]
-goomba,497,524
+goomba,500,524
+goomba,470,524
+goomba,530,524
